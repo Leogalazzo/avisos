@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mas que Burgers - Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
+        #video { width: 100%; max-width: 400px; border-radius: 10px; background: #000; }
+        .controls { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        button { padding: 15px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-scan { background: #ffc107; color: #000; }
+        .btn-wa { background: #25d366; color: white; display: none; }
+        #output { margin-top: 15px; font-size: 18px; color: #333; }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <h2>Mas que Burgers 🍔🍟</h2>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+        <button class="btn-scan" onclick="captureAndScan()">📷 ESCANEAR NÚMERO</button>
+        <div id="output">Esperando número...</div>
+        
+        <button id="btn5min" class="btn-wa" onclick="sendWA('5min')">⏳ En 5 min está listo</button>
+        <button id="btnReady" class="btn-wa" onclick="sendWA('ready')">✅ ¡Ya está listo!</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const output = document.getElementById('output');
+        let detectedNumber = "";
+
+        // 1. Iniciar Cámara
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => console.error("Error cámara: ", err));
+
+        // 2. Capturar y Procesar con OCR
+        async function captureAndScan() {
+            output.innerText = "Escaneando... ⏳";
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+            
+            // Extraer solo los números (mínimo 8 dígitos)
+            const numbers = text.replace(/\D/g, ''); 
+            if (numbers.length >= 8) {
+                // Ajustar prefijo de país si es necesario (ej: 54 para Argentina)
+                detectedNumber = numbers.length === 10 ? "54" + numbers : numbers;
+                output.innerHTML = `<strong>Número: ${detectedNumber}</strong>`;
+                document.getElementById('btn5min').style.display = 'block';
+                document.getElementById('btnReady').style.display = 'block';
+            } else {
+                output.innerText = "No se detectó un número claro. Intentá de nuevo.";
+            }
+        }
+
+        // 3. Enviar Mensaje
+        function sendWA(type) {
+            let msg = "";
+            const footer = "\n\nMas que Burgers🍔🍟";
+            
+            if (type === '5min') {
+                msg = "Buenas noches. En 5 minutos va a estar listo su pedido." + footer;
+            } else {
+                msg = "Buenas noches. Ya esta listo tu pedido☑️" + footer;
+            }
+
+            const url = `https://wa.me/${detectedNumber}?text=${encodeURIComponent(msg)}`;
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>
