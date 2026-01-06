@@ -9,94 +9,84 @@
         :root {
             --primary: #ffc107;
             --whatsapp: #25d366;
-            --dark: #1a1a1a;
+            --bg: #121212;
         }
 
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             text-align: center; 
-            background: #f0f2f5; 
+            background: var(--bg); 
             margin: 0;
-            padding: 20px;
-            color: var(--dark);
-            /* Evita rebote en iOS */
-            overscroll-behavior-y: contain;
+            padding: 15px;
+            color: white;
+            overflow-x: hidden;
         }
 
-        .container { max-width: 500px; margin: auto; }
+        .container { max-width: 450px; margin: auto; }
 
-        h2 { margin-bottom: 15px; font-size: 1.5rem; }
-
-        /* Contenedor de video con guia */
-        .video-wrapper {
+        /* Contenedor de video flexible */
+        .video-container {
             position: relative;
             width: 100%;
-            /* Hacemos un contenedor cuadrado o casi cuadrado para el video */
-            aspect-ratio: 3/4; 
-            border-radius: 15px;
+            border-radius: 20px;
             overflow: hidden;
             background: #000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            line-height: 0; /* Elimina espacio extra */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
         #video {
             width: 100%;
-            height: 100%;
-            /* Esto asegura que el video llene el contenedor sin estirarse raro */
-            object-fit: cover; 
+            height: auto;
+            display: block;
         }
 
-        /* Guía visual para centrar el número */
-        .scanner-guide {
+        /* Guía de escaneo más minimalista */
+        .guide-box {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 85%;
-            height: 70px;
-            border: 2px dashed var(--primary);
-            border-radius: 8px;
-            /* Un pequeño truco para oscurecer alrededor de la guía */
-            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.4);
+            width: 75%;
+            height: 60px;
+            border: 2px solid var(--primary);
+            border-radius: 12px;
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
             pointer-events: none;
+            z-index: 10;
         }
 
-        .controls { 
-            margin-top: 25px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 12px; 
+        .ui-panel {
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        button { 
-            padding: 16px; 
-            font-size: 18px; 
-            border: none; 
-            border-radius: 12px; 
-            cursor: pointer; 
+        #output {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            min-height: 30px;
+            border: 1px solid #333;
+        }
+
+        button {
+            padding: 18px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 15px;
             font-weight: bold;
-            transition: transform 0.1s, opacity 0.2s;
-            /* Evita doble tap zoom en el boton */
-            touch-action: manipulation;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
         }
-
-        button:active { transform: scale(0.96); opacity: 0.9; }
 
         .btn-scan { background: var(--primary); color: #000; }
-        .btn-wa { background: var(--whatsapp); color: white; display: none; font-size: 16px;}
+        .btn-wa { background: var(--whatsapp); color: #fff; display: none; }
         
-        #output { 
-            margin: 15px 0; 
-            font-size: 1.1em; 
-            min-height: 24px;
-            padding: 15px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        /* Estado cargando */
-        .scanning { opacity: 0.7; cursor: not-allowed; }
+        button:active { transform: scale(0.95); }
 
         canvas { display: none; }
     </style>
@@ -104,132 +94,95 @@
 <body>
 
     <div class="container">
-        <h2>Mas que Burgers 🍔🍟</h2>
+        <h2 style="color: var(--primary)">🍔 Mas que Burgers</h2>
         
-        <div class="video-wrapper">
+        <div class="video-container">
             <video id="video" autoplay playsinline muted></video>
-            <div class="scanner-guide"></div>
+            <div class="guide-box"></div>
         </div>
-        
-        <canvas id="canvas"></canvas>
 
-        <div class="controls">
-            <button id="scanBtn" class="btn-scan" onclick="captureAndScan()">📷 ESCANEAR NÚMERO</button>
+        <div class="ui-panel">
+            <button class="btn-scan" onclick="captureAndScan()">📷 Escanear Ticket</button>
             
-            <div id="output">Encuadra el número en el recuadro.</div>
-            
-            <button id="btn5min" class="btn-wa" onclick="sendWA('5min')">⏳ En 5 min está listo</button>
-            <button id="btnReady" class="btn-wa" onclick="sendWA('ready')">✅ ¡Ya está listo!</button>
+            <div id="output">Apunta al número de teléfono</div>
+
+            <button id="btn5min" class="btn-wa" onclick="sendWA('5min')">⏳ En 5 min listo</button>
+            <button id="btnReady" class="btn-wa" onclick="sendWA('ready')">✅ ¡Pedido Listo!</button>
         </div>
     </div>
+
+    <canvas id="canvas"></canvas>
 
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const output = document.getElementById('output');
-        const scanBtn = document.getElementById('scanBtn');
         let detectedNumber = "";
-        let isScanning = false;
 
-        // --- CORRECCIÓN AQUÍ ---
-        // 1. Iniciar Cámara (Modo simple, sin forzar resolución)
-        // Pedimos "environment" (trasera) y dejamos que el navegador decida.
-        navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: { ideal: "environment" }
-            } 
-        })
-        .then(stream => { 
-            video.srcObject = stream; 
-            // Esperamos a que el video tenga datos para ajustar el canvas
-            video.onloadedmetadata = () => {
-                 canvas.width = video.videoWidth;
-                 canvas.height = video.videoHeight;
-            };
-        })
-        .catch(err => {
-            alert("Error: No se pudo acceder a la cámara trasera. Asegúrate de dar permisos y usar HTTPS.");
-            output.innerText = "⚠️ Cámara no disponible.";
-        });
+        // 1. Iniciar cámara de forma "natural"
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "environment" // Usa la trasera por defecto
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                output.innerText = "Error: Activa la cámara y usa HTTPS";
+                console.error(err);
+            }
+        }
 
-
-        // 2. Capturar y Procesar con OCR
+        // 2. OCR - Detección
         async function captureAndScan() {
-            if (isScanning || !video.srcObject) return;
-
-            isScanning = true;
-            scanBtn.innerText = "Procesando... ⏳";
-            scanBtn.classList.add('scanning');
-            output.innerText = "Analizando imagen...";
-            
             const context = canvas.getContext('2d');
-            // Aseguramos que el canvas tenga el tamaño del video actual
+            output.innerText = "Procesando... 🔍";
+            
+            // Ajustamos canvas al tamaño real del video en ese momento
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             try {
-                // Tesseract analiza el canvas. Usamos el modelo 'eng' (inglés) que funciona bien para números.
-                const result = await Tesseract.recognize(canvas, 'eng', {
-                    // Opcional: Logger para ver el progreso en consola
-                    // logger: m => console.log(m) 
-                });
+                const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
                 
-                const text = result.data.text;
+                // Buscamos números de 8 a 11 dígitos
+                const found = text.match(/\d{8,11}/);
                 
-                // Limpieza del texto: extraemos solo los dígitos
-                // Usamos una expresión regular que busca grupos de 8 o más dígitos juntos
-                const textCleaned = text.replace(/[^0-9\n]/g, ''); // Dejar solo números y saltos de linea
-                
-                // Buscamos la secuencia de números más larga que parezca un celular
-                let possibleNumbers = textCleaned.match(/\d{8,12}/g); 
-                
-                if (possibleNumbers && possibleNumbers.length > 0) {
-                    // Tomamos el primer número válido encontrado
-                    let rawNumber = possibleNumbers[0];
-
-                    // --- LÓGICA DE PAÍS (Ajustar si es necesario) ---
-                    // Si detecta 10 dígitos (ej. 11 1234 5678), asumimos que es Argentina y agregamos 54
-                    if (rawNumber.length === 10 && !rawNumber.startsWith('54')) {
-                        detectedNumber = "54" + rawNumber;
-                    } else {
-                        detectedNumber = rawNumber;
-                    }
+                if (found) {
+                    let num = found[0];
+                    // Formateo para Argentina (puedes quitar el '54' si no lo necesitas)
+                    detectedNumber = num.length === 10 ? "54" + num : num;
                     
-                    output.innerHTML = `✅ Detectado: <strong>${detectedNumber}</strong>`;
+                    output.innerHTML = `Número: <strong>${detectedNumber}</strong>`;
                     document.getElementById('btn5min').style.display = 'block';
                     document.getElementById('btnReady').style.display = 'block';
-                    // Vibrar si el celular lo soporta para confirmar escaneo
-                    if (navigator.vibrate) navigator.vibrate(200);
-
                 } else {
-                    output.innerHTML = "⚠️ No se encontró un número claro.<br><small>Intenta acercar y centrar el número.</small>";
+                    output.innerText = "No se encontró el número. ¡Intenta de nuevo!";
                 }
             } catch (e) {
-                console.error(e);
-                output.innerText = "Error técnico en el escaneo. Reintentá.";
+                output.innerText = "Error al leer la imagen.";
             }
-
-            isScanning = false;
-            scanBtn.innerText = "📷 ESCANEAR DE NUEVO";
-            scanBtn.classList.remove('scanning');
         }
 
-        // 3. Función para enviar los mensajes predeterminados
-        function sendWA(type) {
+        // 3. Enviar a WhatsApp
+        function sendWA(tipo) {
             let msg = "";
             const footer = "\n\nMas que Burgers🍔🍟";
             
-            if (type === '5min') {
+            if (tipo === '5min') {
                 msg = "Buenas noches. En 5 minutos va a estar listo su pedido." + footer;
             } else {
                 msg = "Buenas noches. Ya esta listo tu pedido☑️" + footer;
             }
 
-            // Abrimos WhatsApp con el número y el texto codificado
             const url = `https://wa.me/${detectedNumber}?text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
         }
+
+        startCamera();
     </script>
 </body>
 </html>
