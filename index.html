@@ -9,106 +9,99 @@
         :root {
             --primary: #ffc107;
             --whatsapp: #25d366;
-            --bg: #121212;
+            --bg: #000;
         }
 
         body { 
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: sans-serif;
             text-align: center; 
             background: var(--bg); 
             margin: 0;
-            padding: 15px;
+            padding: 10px;
             color: white;
-            overflow-x: hidden;
         }
 
-        .container { max-width: 450px; margin: auto; }
-
-        /* Contenedor de video flexible */
+        /* El contenedor ahora es flexible */
         .video-container {
             position: relative;
             width: 100%;
-            border-radius: 20px;
+            max-width: 400px;
+            margin: auto;
+            background: #111;
+            border-radius: 15px;
             overflow: hidden;
-            background: #000;
-            line-height: 0; /* Elimina espacio extra */
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            /* Evita que el video se estire de forma rara */
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #video {
             width: 100%;
             height: auto;
-            display: block;
+            /* 'contain' asegura que veas exactamente lo que ve la cámara sin zoom raro */
+            object-fit: contain; 
         }
 
-        /* Guía de escaneo más minimalista */
         .guide-box {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 75%;
-            height: 60px;
+            width: 80%;
+            height: 50px;
             border: 2px solid var(--primary);
-            border-radius: 12px;
+            border-radius: 5px;
             box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
             pointer-events: none;
-            z-index: 10;
         }
 
         .ui-panel {
-            padding: 20px 0;
+            padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
+            max-width: 400px;
+            margin: auto;
         }
 
         #output {
-            background: #1e1e1e;
-            padding: 15px;
-            border-radius: 15px;
-            font-size: 1.1rem;
-            min-height: 30px;
-            border: 1px solid #333;
+            background: #222;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 1rem;
+            border: 1px solid #444;
+            color: var(--primary);
+            font-weight: bold;
         }
 
         button {
-            padding: 18px;
+            padding: 15px;
             font-size: 1rem;
             border: none;
-            border-radius: 15px;
+            border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
-            transition: 0.2s;
-            text-transform: uppercase;
         }
 
         .btn-scan { background: var(--primary); color: #000; }
         .btn-wa { background: var(--whatsapp); color: #fff; display: none; }
         
-        button:active { transform: scale(0.95); }
-
         canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2 style="color: var(--primary)">🍔 Mas que Burgers</h2>
+    <h2 style="color: var(--primary); margin: 10px 0;">🍔 Mas que Burgers</h2>
+    
+    <div class="video-container">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="guide-box"></div>
+    </div>
+
+    <div class="ui-panel">
+        <div id="output">Apunta al número y dispara</div>
+        <button class="btn-scan" onclick="captureAndScan()">📷 ESCANEAR AHORA</button>
         
-        <div class="video-container">
-            <video id="video" autoplay playsinline muted></video>
-            <div class="guide-box"></div>
-        </div>
-
-        <div class="ui-panel">
-            <button class="btn-scan" onclick="captureAndScan()">📷 Escanear Ticket</button>
-            
-            <div id="output">Apunta al número de teléfono</div>
-
-            <button id="btn5min" class="btn-wa" onclick="sendWA('5min')">⏳ En 5 min listo</button>
-            <button id="btnReady" class="btn-wa" onclick="sendWA('ready')">✅ ¡Pedido Listo!</button>
-        </div>
+        <button id="btn5min" class="btn-wa" onclick="sendWA('5min')">⏳ En 5 min listo</button>
+        <button id="btnReady" class="btn-wa" onclick="sendWA('ready')">✅ ¡Pedido Listo!</button>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -119,67 +112,65 @@
         const output = document.getElementById('output');
         let detectedNumber = "";
 
-        // 1. Iniciar cámara de forma "natural"
+        // 1. Iniciar cámara evitando el gran angular si es posible
         async function startCamera() {
+            const constraints = {
+                video: { 
+                    facingMode: "environment",
+                    // Pedimos una resolución estándar para que no use la ultra-wide
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: "environment" // Usa la trasera por defecto
-                    },
-                    audio: false
-                });
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
             } catch (err) {
-                output.innerText = "Error: Activa la cámara y usa HTTPS";
-                console.error(err);
+                // Si falla (por ejemplo, el celu no soporta 1080p), intentamos con lo básico
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                    .then(s => video.srcObject = s)
+                    .catch(e => output.innerText = "Error: No hay cámara.");
             }
         }
 
-        // 2. OCR - Detección
         async function captureAndScan() {
             const context = canvas.getContext('2d');
-            output.innerText = "Procesando... 🔍";
+            output.innerText = "Buscando número... 🔎";
             
-            // Ajustamos canvas al tamaño real del video en ese momento
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             try {
                 const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+                console.log("Texto detectado:", text); // Para debugear en la PC
                 
-                // Buscamos números de 8 a 11 dígitos
-                const found = text.match(/\d{8,11}/);
+                // Buscamos números de 8 a 12 dígitos
+                const matches = text.match(/\d{8,12}/g);
                 
-                if (found) {
-                    let num = found[0];
-                    // Formateo para Argentina (puedes quitar el '54' si no lo necesitas)
-                    detectedNumber = num.length === 10 ? "54" + num : num;
+                if (matches) {
+                    let num = matches[0];
+                    // Si estás en Argentina y detecta 10 números, agregamos 54
+                    detectedNumber = (num.length === 10) ? "54" + num : num;
                     
-                    output.innerHTML = `Número: <strong>${detectedNumber}</strong>`;
+                    output.innerHTML = `NÚMERO: ${detectedNumber}`;
                     document.getElementById('btn5min').style.display = 'block';
                     document.getElementById('btnReady').style.display = 'block';
                 } else {
-                    output.innerText = "No se encontró el número. ¡Intenta de nuevo!";
+                    output.innerText = "No se vio un número. Reintentá.";
                 }
             } catch (e) {
-                output.innerText = "Error al leer la imagen.";
+                output.innerText = "Error de lectura.";
             }
         }
 
-        // 3. Enviar a WhatsApp
         function sendWA(tipo) {
-            let msg = "";
-            const footer = "\n\nMas que Burgers🍔🍟";
-            
-            if (tipo === '5min') {
-                msg = "Buenas noches. En 5 minutos va a estar listo su pedido." + footer;
-            } else {
-                msg = "Buenas noches. Ya esta listo tu pedido☑️" + footer;
-            }
+            let msg = tipo === '5min' 
+                ? "Buenas noches. En 5 minutos va a estar listo su pedido.\n\nMas que Burgers🍔🍟"
+                : "Buenas noches. Ya esta listo tu pedido☑️\n\nMas que Burgers🍔🍟";
 
-            const url = `https://wa.me/${detectedNumber}?text=${encodeURIComponent(msg)}`;
-            window.open(url, '_blank');
+            window.open(`https://wa.me/${detectedNumber}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         startCamera();
