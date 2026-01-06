@@ -11,10 +11,11 @@
             --whatsapp: #25d366;
             --bg: #121212;
             --surface: #1e1e1e;
+            --text: #ffffff;
         }
 
-        /* Quitamos el scroll de toda la pantalla */
         * { box-sizing: border-box; }
+
         html, body { 
             margin: 0; 
             padding: 0; 
@@ -22,10 +23,10 @@
             overflow: hidden; 
             background: var(--bg);
             font-family: -apple-system, system-ui, sans-serif;
-            color: white;
+            color: var(--text);
         }
 
-        /* Contenedor principal tipo App */
+        /* Contenedor principal: Flexbox vertical que ocupa el 100% */
         .app-container {
             display: flex;
             flex-direction: column;
@@ -36,17 +37,19 @@
         header {
             padding: 10px 0;
             text-align: center;
+            flex-shrink: 0; /* No se achica */
         }
 
         header h1 { margin: 0; font-size: 1.2rem; color: var(--primary); }
 
-        /* El video ocupa el espacio sobrante automáticamente */
+        /* Sección de video: ocupa todo el espacio disponible */
         .video-section {
             flex: 1; 
             position: relative;
             background: #000;
             border-radius: 20px;
             overflow: hidden;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -55,39 +58,52 @@
         #video {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Llena el espacio sin deformar */
+            object-fit: cover;
         }
 
         .guide-box {
             position: absolute;
-            width: 80%;
+            width: 85%;
             height: 60px;
             border: 2px solid var(--primary);
             border-radius: 10px;
-            box-shadow: 0 0 0 1000px rgba(0,0,0,0.4);
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
             pointer-events: none;
             z-index: 5;
         }
 
-        /* Panel de controles fijo abajo */
+        /* Panel de controles: altura fija abajo */
         .controls-section {
-            padding: 15px 0;
+            flex-shrink: 0;
+            padding-bottom: 10px;
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
 
-        #output {
+        /* Input de número editable */
+        .input-container {
+            width: 100%;
+            position: relative;
+        }
+
+        #numInput {
+            width: 100%;
             background: var(--surface);
-            padding: 12px;
+            color: var(--primary);
+            border: 1px solid #444;
+            padding: 15px;
             border-radius: 12px;
             text-align: center;
-            font-size: 0.95rem;
-            min-height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #333;
+            font-size: 1.3rem;
+            font-weight: bold;
+            outline: none;
+        }
+
+        #numInput::placeholder {
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: normal;
         }
 
         button {
@@ -98,11 +114,8 @@
             border-radius: 15px;
             font-weight: bold;
             cursor: pointer;
-            transition: active 0.1s;
             touch-action: manipulation;
         }
-
-        button:active { opacity: 0.8; transform: scale(0.98); }
 
         .btn-scan { background: var(--primary); color: #000; }
         
@@ -110,10 +123,11 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            display: none; /* Se activa al detectar número */
+            /* Se mantiene oculto hasta detectar algo o escribir algo */
+            display: none; 
         }
 
-        .btn-wa { background: var(--whatsapp); color: white; font-size: 0.85rem; }
+        .btn-wa { background: var(--whatsapp); color: white; font-size: 0.8rem; }
 
         canvas { display: none; }
     </style>
@@ -131,7 +145,9 @@
         </div>
 
         <div class="controls-section">
-            <div id="output">Encuadra el teléfono y toca escanear</div>
+            <div class="input-container">
+                <input type="tel" id="numInput" placeholder="Número detectado..." autocomplete="off">
+            </div>
             
             <button id="scanBtn" class="btn-scan" onclick="captureAndScan()">📷 ESCANEAR TICKET</button>
 
@@ -147,26 +163,34 @@
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
-        const output = document.getElementById('output');
+        const numInput = document.getElementById('numInput');
         const waButtons = document.getElementById('waButtons');
         const scanBtn = document.getElementById('scanBtn');
-        let detectedNumber = "";
 
-        // Iniciar cámara optimizada
+        // 1. Iniciar cámara inmediatamente
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
                 });
                 video.srcObject = stream;
             } catch (err) {
-                output.innerText = "Error: Sin acceso a cámara.";
+                numInput.value = "";
+                numInput.placeholder = "Error: Sin acceso a cámara";
             }
         }
 
+        // 2. Escaneo y OCR
         async function captureAndScan() {
             const context = canvas.getContext('2d');
-            output.innerText = "Buscando... 🔎";
+            
+            // UI Feedback
+            numInput.value = "";
+            numInput.placeholder = "Escaneando... 🔎";
             scanBtn.disabled = true;
             scanBtn.style.opacity = "0.5";
             
@@ -175,30 +199,54 @@
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             try {
-                const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+                // Optimizamos Tesseract para buscar solo números
+                const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+                    tessedit_char_whitelist: '0123456789'
+                });
+                
                 const matches = text.match(/\d{8,12}/g);
                 
                 if (matches) {
                     let num = matches[0];
-                    detectedNumber = (num.length === 10) ? "54" + num : num;
-                    output.innerHTML = `✅ <strong>${detectedNumber}</strong>`;
-                    waButtons.style.display = 'grid'; // Muestra botones de WA
+                    // Si tiene 10 dígitos, agregamos el 54 de Argentina
+                    let finalNum = (num.length === 10) ? "54" + num : num;
+                    
+                    numInput.value = finalNum;
+                    waButtons.style.display = 'grid'; 
                 } else {
-                    output.innerText = "No se detectó el número. Reintentá.";
+                    numInput.placeholder = "No detectado. Intenta de nuevo.";
                 }
             } catch (e) {
-                output.innerText = "Error al procesar.";
+                numInput.placeholder = "Error al procesar imagen.";
             } finally {
                 scanBtn.disabled = false;
                 scanBtn.style.opacity = "1";
             }
         }
 
+        // Mostrar botones si el usuario escribe manualmente el número
+        numInput.addEventListener('input', () => {
+            if (numInput.value.length >= 8) {
+                waButtons.style.display = 'grid';
+            } else {
+                waButtons.style.display = 'none';
+            }
+        });
+
+        // 3. Enviar a WhatsApp usando el valor ACTUAL del input
         function sendWA(tipo) {
+            const numeroParaEnviar = numInput.value.replace(/\D/g, ''); // Limpiar cualquier caracter no numérico
+            
+            if (!numeroParaEnviar) {
+                alert("Por favor, ingresa o escanea un número.");
+                return;
+            }
+
             let msg = tipo === '5min' 
                 ? "Buenas noches. En 5 minutos va a estar listo su pedido.\n\nMas que Burgers🍔🍟"
                 : "Buenas noches. Ya esta listo tu pedido☑️\n\nMas que Burgers🍔🍟";
-            window.open(`https://wa.me/${detectedNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+            
+            window.open(`https://wa.me/${numeroParaEnviar}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         startCamera();
